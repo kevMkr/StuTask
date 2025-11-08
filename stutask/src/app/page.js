@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import Image from 'next/image'
+import logo from '../../Logo.png'
 
 export default function Page() {
   return (
@@ -7,8 +9,7 @@ export default function Page() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="bg-white shadow-sm rounded-full px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">S</div>
-              <span className="font-semibold">StuTask</span>
+              <Image src={logo} alt="StuTask" width={120} height={36} />
             </div>
             <Link className="text-sm text-gray-600 hover:underline" href="/login">Login</Link>
           </div>

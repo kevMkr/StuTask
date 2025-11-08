@@ -1,7 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from 'next/navigation'
 import Link from "next/link"
+import Image from "next/image"
+import logo from "../../../Logo.png"
+import graphic from "../../../GraphicStudent.png"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -12,37 +16,32 @@ export default function LoginPage() {
   function handleSubmit(e) {
     e.preventDefault()
     setError("")
-    // Simple validation similar to the design: require fields and confirm match
     if (!email || !password) {
       setError("Please fill in all required fields.")
       return
     }
-    // If confirm field exists (signup) check match
     if (confirm && password !== confirm) {
       setError("Passwords do not match.")
       return
     }
-
-    // TODO: replace with real auth integration
-    // For now just log values
-    // eslint-disable-next-line no-console
     console.log({ email, password })
-    alert("Form submitted (see console). Implement auth integration next.")
+    router.push('/dashboard')
   }
 
+  const router = useRouter()
+
   return (
-    <main className="min-h-screen bg-white flex items-center justify-center">
-      <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2">
-        {/* Left - form */}
-        <div className="p-12">
+    <main className="min-h-screen bg-white">
+      <div className="w-full min-h-screen grid grid-cols-1 md:grid-cols-2">
+        <div className="p-12 flex items-center">
+          <div className="w-full max-w-md">
           <div className="mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">S</div>
-              <span className="font-semibold text-lg">StuTask</span>
+              <Image src={logo} alt="StuTask" width={120} height={36} />
             </div>
           </div>
 
-          <h1 className="text-3xl font-bold mb-2">SIGN UP</h1>
+          <h1 className="text-3xl font-bold mb-2 text-black">SIGN UP</h1>
           <p className="text-sm text-gray-600 mb-6">Join us now in becoming a member of StuTask!</p>
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -55,7 +54,7 @@ export default function LoginPage() {
                 </svg>
               </div>
               <input
-                className="w-full border rounded-full h-12 pl-12 pr-4 placeholder-gray-400"
+                className="w-full border rounded-full h-12 pl-12 pr-4 placeholder-gray-400 text-black"
                 type="email"
                 placeholder="Email Address"
                 value={email}
@@ -73,7 +72,7 @@ export default function LoginPage() {
                 </svg>
               </div>
               <input
-                className="w-full border rounded-full h-12 pl-12 pr-4 placeholder-gray-400"
+                className="w-full border rounded-full h-12 pl-12 pr-4 placeholder-gray-400 text-black"
                 type="password"
                 placeholder="Password"
                 value={password}
@@ -91,7 +90,7 @@ export default function LoginPage() {
                 </svg>
               </div>
               <input
-                className="w-full border rounded-full h-12 pl-12 pr-4 placeholder-gray-400"
+                className="w-full border rounded-full h-12 pl-12 pr-4 placeholder-gray-400 text-black"
                 type="password"
                 placeholder="Re-confirm Password"
                 value={confirm}
@@ -114,21 +113,13 @@ export default function LoginPage() {
 
             <p className="text-sm text-gray-600">Already registered? <Link href="/login" className="text-blue-600 hover:underline">Login</Link></p>
           </form>
+          </div>
         </div>
 
-        {/* Right - illustration */}
-        <div className="hidden md:flex items-center justify-center bg-[#2f7ef6] rounded-l-[80px] p-8">
+
+        <div className="hidden md:flex items-center justify-center bg-[#2f7ef6] rounded-l-[80px] p-8 min-h-screen">
           <div className="max-w-xs text-center text-white">
-            {/* Decorative illustration placeholder */}
-            <svg viewBox="0 0 200 140" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
-              <rect x="0" y="0" width="200" height="140" rx="20" fill="#2f7ef6" />
-              <g transform="translate(10,12)">
-                <rect x="10" y="10" width="120" height="70" rx="6" fill="#fff" opacity="0.9"/>
-                <circle cx="150" cy="90" r="28" fill="#fff" opacity="0.9"/>
-                <rect x="24" y="24" width="40" height="8" rx="3" fill="#2f7ef6"/>
-                <rect x="24" y="38" width="80" height="8" rx="3" fill="#2f7ef6"/>
-              </g>
-            </svg>
+              <Image src={graphic} alt="Graphic Student" width={8000} height={8000} className="w-full h-auto object-contain" />
           </div>
         </div>
       </div>
