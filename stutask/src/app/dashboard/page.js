@@ -1,8 +1,18 @@
+"use client"
+
+import { useState } from "react"
 import Image from 'next/image'
 import Link from 'next/link'
 import logo from '../../../Logo.png'
 
 export default function DashboardPage() {
+  const [tab, setTab] = useState('student')
+  const [showMore, setShowMore] = useState(false) // added state to toggle recommended list
+
+  const recommendedItems = showMore
+    ? Array.from({ length: 8 }, (_, i) => i + 1)
+    : [1, 2, 3, 4]
+
   return (
     <main className="min-h-screen bg-white">
       <header className="w-full py-4 border-b">
@@ -20,45 +30,118 @@ export default function DashboardPage() {
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-semibold">Welcome, <span className="text-yellow-400">Kevin</span></h2>
-          <div className="flex items-center gap-3">
-            <button className="px-3 py-1 bg-gray-100 rounded-full">Student</button>
-            <button className="px-3 py-1 bg-white border rounded-full">Employer</button>
+
+          {/* Tab list (Student / Employer) */}
+          <div role="tablist" aria-label="User role tabs" className="flex items-center gap-3">
+            <button
+              role="tab"
+              id="tab-student"
+              aria-selected={tab === 'student'}
+              aria-controls="panel-student"
+              className={`px-3 py-1 rounded-full focus:outline-none ${
+                tab === 'student' ? 'bg-gray-100' : 'bg-white border'
+              }`}
+              onClick={() => setTab('student')}
+            >
+              Student
+            </button>
+
+            <button
+              role="tab"
+              id="tab-employer"
+              aria-selected={tab === 'employer'}
+              aria-controls="panel-employer"
+              className={`px-3 py-1 rounded-full focus:outline-none ${
+                tab === 'employer' ? 'bg-gray-100' : 'bg-white border'
+              }`}
+              onClick={() => setTab('employer')}
+            >
+              Employer
+            </button>
           </div>
         </div>
 
-        <section className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-6 bg-blue-500 text-white rounded-2xl">
-                <div className="text-3xl font-bold">2</div>
-                <div className="text-sm mt-1">Active projects</div>
-              </div>
+        <section className="mt-8 grid grid-cols-1 gap-6">
+          {/* Panels */}
+          <div className="grid grid-cols-2 w-full gap-4">
+            <div >
+              {/* Student panel */}
+              <section
+                id="panel-student"
+                role="tabpanel"
+                className='grid grid-cols-2 gap-2'
+                aria-labelledby="tab-student"
+                hidden={tab !== 'student'}
+              >
+                <div className="p-6 bg-blue-500 text-white rounded-2xl">
+                  <div className="text-3xl font-bold">2</div>
+                  <div className="text-sm mt-1">Active projects</div>
+                </div>
 
-              <div className="p-6 bg-white border rounded-2xl">
-                <div className="text-3xl font-bold">5</div>
-                <div className="text-sm mt-1 text-gray-600">Pending approvals</div>
-              </div>
+                <div className="p-6 bg-white border rounded-2xl">
+                  <div className="text-3xl font-bold">5</div>
+                  <div className="text-sm mt-1 text-gray-600">Pending approvals</div>
+                </div>
 
-              <div className="p-6 bg-white border rounded-2xl">
-                <div className="text-3xl font-bold">12</div>
-                <div className="text-sm mt-1 text-gray-600">Completed projects</div>
-              </div>
+                <div className="p-6 bg-white border rounded-2xl">
+                  <div className="text-3xl font-bold">12</div>
+                  <div className="text-sm mt-1 text-gray-600">Completed projects</div>
+                </div>
 
-              <div className="p-6 bg-white border rounded-2xl">
-                <div className="text-3xl font-bold">Rp. 3,750,000</div>
-                <div className="text-sm mt-1 text-gray-600">Gains</div>
-              </div>
+                <div className="p-6 bg-white border rounded-2xl">
+                  <div className="text-3xl font-bold">Rp. 3,750,000</div>
+                  <div className="text-sm mt-1 text-gray-600">Gains</div>
+                </div>
+              </section>
+
+              {/* Employer panel (hidden when student active) */}
+              <section
+                id="panel-employer"
+                role="tabpanel"
+                className='grid grid-cols-2 gap-2'
+                aria-labelledby="tab-employer"
+                hidden={tab !== 'employer'}
+              >
+                <div className="p-6 bg-green-500 text-white rounded-2xl">
+                  <div className="text-3xl font-bold">8</div>
+                  <div className="text-sm mt-1">Open positions</div>
+                </div>
+
+                <div className="p-6 bg-white border rounded-2xl">
+                  <div className="text-3xl font-bold">34</div>
+                  <div className="text-sm mt-1 text-gray-600">Applicants</div>
+                </div>
+
+                <div className="p-6 bg-white border rounded-2xl">
+                  <div className="text-3xl font-bold">5</div>
+                  <div className="text-sm mt-1 text-gray-600">Hires</div>
+                </div>
+
+                <div className="p-6 bg-white border rounded-2xl">
+                  <div className="text-3xl font-bold">Rp. 12,500,000</div>
+                  <div className="text-sm mt-1 text-gray-600">Spend</div>
+                </div>
+              </section>
             </div>
 
-            <div className="mt-6 p-6 bg-white border rounded-2xl h-48">
+            <div className="p-6 bg-white border rounded-2xl w-full h-full">
               <div className="text-sm text-gray-500">Most recent work</div>
             </div>
           </div>
 
           <aside>
-            <h3 className="text-lg font-semibold mb-4">Recommended jobs</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Recommended jobs</h3>
+              <Link
+                href="/dashboard/jobs"
+                className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
+              >
+                View more <span aria-hidden className="text-xs">›</span>
+              </Link>
+            </div>
+
             <div className="bg-blue-500 p-4 rounded-3xl space-y-4">
-              {[1,2,3,4].map((i)=> (
+              {recommendedItems.map((i)=> (
                 <div key={i} className="bg-white rounded-xl p-4 flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-gray-200" />
                   <div className="flex-1">

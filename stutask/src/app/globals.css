@@ -25,14 +25,9 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Force all text to black to ensure consistency across components/utilities */
-/* This overrides utility classes where necessary; remove !important if you prefer selective styling */
-body, body * {
-  color: #000000 !important;
-}
 
 /* Ensure placeholders are also visible in black */
 ::placeholder {
-  color: #000000 !important;
+  color: #000000;
   opacity: 1;
 }
