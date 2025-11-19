@@ -111,7 +111,7 @@ export default function BrowserJobsPage() {
 
             <div className="flex items-center gap-6 text-sm text-gray-600">
               <a href="#" className="hover:underline">Upgrade to Pro</a>
-              <a href="#" className="hover:underline">Account</a>
+              <Link href="/profile" className="hover:underline">Account</Link>
             </div>
           </div>
         </header>
