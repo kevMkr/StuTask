@@ -1,12 +1,49 @@
+"use client"
+
+import { useEffect } from 'react'
+import { useRouter } from "next/navigation"
 import Image from 'next/image'
 import Link from 'next/link'
+import { signOut } from "firebase/auth"
+import { auth } from '../../../config'
+import { useAuth } from '../../hooks/useAuth'
 import logo from '../../../Logo.png'
 
 export default function ProfilePage(){
-  // Static demo profile. Replace with real user data when connected to auth.
-  const user = {
-    name: 'Kevin',
-    email: 'kevin@example.com',
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login")
+    }
+  }, [loading, user, router])
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
+        Loading profile...
+      </main>
+    )
+  }
+
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
+        Redirecting...
+      </main>
+    )
+  }
+
+  const name = user.displayName || user.email?.split("@")[0] || "User"
+
+  async function handleSignOut() {
+    try {
+      await signOut(auth)
+      router.replace("/login")
+    } catch (err) {
+      // swallow error; dashboard already exposes sign-out feedback
+    }
   }
 
   return (
@@ -18,18 +55,21 @@ export default function ProfilePage(){
               <Image src={logo} alt="StuTask" width={120} height={36} />
             </Link>
           </div>
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 flex items-center gap-4">
             <Link href="/dashboard" className="hover:underline">Back</Link>
+            <button onClick={handleSignOut} className="hover:underline">Sign out</button>
           </div>
         </div>
       </header>
 
       <div className="max-w-4xl mx-auto p-8">
         <div className="flex items-center gap-6">
-          <div className="w-28 h-28 rounded-full bg-gray-200 flex items-center justify-center text-3xl font-bold">K</div>
+          <div className="w-28 h-28 rounded-full bg-gray-200 flex items-center justify-center text-3xl font-bold">
+            {name?.[0]?.toUpperCase() || "U"}
+          </div>
 
           <div>
-            <h1 className="text-2xl font-semibold">{user.name}</h1>
+            <h1 className="text-2xl font-semibold">{name}</h1>
             <div className="text-sm text-gray-600">{user.email}</div>
             <div className="mt-4">
               <Link href="/profile/edit" className="inline-block bg-blue-600 text-white px-4 py-2 rounded">Edit profile</Link>
@@ -39,7 +79,7 @@ export default function ProfilePage(){
 
         <section className="mt-8 bg-white border rounded-lg p-6">
           <h2 className="text-lg font-semibold mb-3">About</h2>
-          <p className="text-sm text-gray-600">This is a demo profile page. Connect authentication and user data to populate real information.</p>
+          <p className="text-sm text-gray-600">Your profile uses the details from your StuTask account. Add more fields when you connect a real profile store.</p>
         </section>
       </div>
     </main>

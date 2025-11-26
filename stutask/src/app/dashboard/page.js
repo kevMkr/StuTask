@@ -1,17 +1,58 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import Image from 'next/image'
 import Link from 'next/link'
+import { signOut } from "firebase/auth"
+import { auth } from "../../../config"
+import { useAuth } from "../../hooks/useAuth"
 import logo from '../../../Logo.png'
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const { user, loading } = useAuth()
   const [tab, setTab] = useState('student')
-  const [showMore, setShowMore] = useState(false) // added state to toggle recommended list
+  const [showMore, setShowMore] = useState(false)
+  const [signOutError, setSignOutError] = useState("")
+
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "there"
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login")
+    }
+  }, [loading, user, router])
+
+  async function handleSignOut() {
+    setSignOutError("")
+    try {
+      await signOut(auth)
+      router.replace("/login")
+    } catch (err) {
+      setSignOutError("Unable to sign out. Please try again.")
+    }
+  }
 
   const recommendedItems = showMore
     ? Array.from({ length: 8 }, (_, i) => i + 1)
     : [1, 2, 3, 4]
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
+        Checking authentication...
+      </main>
+    )
+  }
+
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
+        Redirecting to login...
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-white">
@@ -23,13 +64,16 @@ export default function DashboardPage() {
           <div className="text-sm text-gray-600 flex items-center gap-6">
             <a href="#" className="hover:underline">Upgrade to Pro</a>
             <Link href="/profile" className="hover:underline">Account</Link>
+            <button onClick={handleSignOut} className="text-gray-700 hover:underline">Sign out</button>
           </div>
         </div>
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold">Welcome, <span className="text-yellow-400">Kevin</span></h2>
+          <h2 className="text-2xl font-semibold">Welcome, <span className="text-yellow-400">{displayName}</span></h2>
+
+          {signOutError && <span className="text-sm text-red-600">{signOutError}</span>}
 
           {/* Tab list (Student / Employer) */}
           <div role="tablist" aria-label="User role tabs" className="flex items-center gap-3">

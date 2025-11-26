@@ -32,7 +32,7 @@ export default function Page() {
             </p>
           </div>
 
-          <div className="w-56 h-56 bg-white rounded-full flex-shrink-0 shadow-lg relative">
+          <div className="w-56 h-56 bg-white rounded-full shadow-lg relative">
 
             <svg viewBox="0 0 200 200" className="w-full h-full text-gray-200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
               <g fill="none" fillRule="evenodd">
