@@ -1,45 +1,24 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { collection, getDocs, limit, orderBy, query, startAfter } from "firebase/firestore"
+import { db } from "../../../../config"
+import { useAuth } from "../../../hooks/useAuth"
+import { formatCurrency, formatDate } from "../../../utils/jobs"
 import logo from '../../../../Logo.png'
 
-function formatRp(n) {
-  return 'Rp. ' + n.toLocaleString('id-ID')
-}
-
-function isoDate(daysOffset = 0) {
-  const d = new Date()
-  d.setDate(d.getDate() + daysOffset)
-  return d.toISOString().slice(0, 10)
-}
-
-function generateItems(start = 1, count = 6) {
-  return Array.from({ length: count }, (_, i) => {
-    const id = start + i
-    const priceNumber = 1500000 + ((id * 250000) % 4000000)
-    const postedOffset = -((id % 10) + 1) // posted some days ago
-    const endOffset = (id % 30) + 7 // deadline in future
-    return {
-      id,
-      person: `Person name ${id}`,
-      location: "Location",
-      project: `Project title ${id}`,
-      role: "Role title",
-      startDate: isoDate(1 + (id % 7)),
-      endDate: isoDate(endOffset),
-      postedDate: isoDate(postedOffset),
-      priceNumber,
-      price: formatRp(priceNumber),
-      frequency: "Work frequency",
-    }
-  })
-}
+const PAGE_SIZE = 6
 
 export default function BrowserJobsPage() {
-  const [items, setItems] = useState(() => generateItems(1, 24))
+  const { user, loading: authLoading } = useAuth()
+  const [items, setItems] = useState([])
   const [page, setPage] = useState(1)
-  const perPage = 6
+  const [lastDoc, setLastDoc] = useState(null)
+  const [hasMore, setHasMore] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState("")
 
   // filters
   const [projectQuery, setProjectQuery] = useState('')
@@ -48,7 +27,57 @@ export default function BrowserJobsPage() {
   const [deadline, setDeadline] = useState('')
   const [postedAfter, setPostedAfter] = useState('')
 
-  // apply filters with useMemo
+  const loadJobs = useCallback(async (cursor) => {
+    if (!user) return
+    const isLoadMore = Boolean(cursor)
+    if (isLoadMore) {
+      setLoadingMore(true)
+    } else {
+      setLoading(true)
+    }
+    setError("")
+    try {
+      const q = cursor
+        ? query(collection(db, "jobs"), orderBy("createdAt", "desc"), startAfter(cursor), limit(PAGE_SIZE))
+        : query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(PAGE_SIZE))
+      const snap = await getDocs(q)
+      const docs = snap.docs.map((doc) => {
+        const data = doc.data()
+        return {
+          id: doc.id,
+          person: data?.createdBy?.fullName || data?.createdBy?.email || "Unknown",
+          project: data?.title || "Untitled",
+          role: data?.role || "",
+          startDate: formatDate(data?.startDate),
+          endDate: formatDate(data?.endDate),
+          postedDate: formatDate(data?.createdAt),
+          payout: data?.payout,
+          priceNumber: Number(data?.payout?.amount) || 0,
+          price: formatCurrency(data?.payout || { amount: 0, currency: "USD" }),
+          frequency: "",
+          categories: data?.categories || [],
+        }
+      })
+
+      setItems((prev) => (isLoadMore ? [...prev, ...docs] : docs))
+      const last = snap.docs[snap.docs.length - 1] || null
+      setLastDoc(last)
+      setHasMore(snap.docs.length === PAGE_SIZE)
+    } catch (err) {
+      setError("Unable to load jobs.")
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user) return
+    loadJobs()
+  }, [authLoading, user, loadJobs])
+
+  // apply filters with useMemo (client-side on loaded jobs)
   const filtered = useMemo(() => {
     const q = projectQuery.trim().toLowerCase()
     return items.filter((it) => {
@@ -56,36 +85,31 @@ export default function BrowserJobsPage() {
       if (minPay && it.priceNumber < Number(minPay)) return false
       if (maxPay && it.priceNumber > Number(maxPay)) return false
       if (deadline) {
-        // include if job's endDate is on/after selected deadline
         if (new Date(it.endDate) < new Date(deadline)) return false
       }
       if (postedAfter) {
-        // include if job posted on/after selected postedAfter
         if (new Date(it.postedDate) < new Date(postedAfter)) return false
       }
       return true
     })
   }, [items, projectQuery, minPay, maxPay, deadline, postedAfter])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
-  const pageItems = filtered.slice((page - 1) * perPage, page * perPage)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(Math.max(page, 1), totalPages)
+  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   function goToPage(p) {
     const next = Math.min(Math.max(1, p), totalPages)
     setPage(next)
-    window.scrollTo({ top: 0, behavior: "smooth" })
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
   }
 
-  function loadMore() {
-    const start = items.length + 1
-    const more = generateItems(start, 6)
-    setItems((s) => [...s, ...more])
-    // after adding items, move to last page of filtered results after a short tick
-    setTimeout(() => {
-      const newTotal = Math.ceil((filtered.length + more.length) / perPage)
-      setPage(Math.max(1, newTotal))
-      window.scrollTo({ top: 0, behavior: "smooth" })
-    }, 60)
+  async function loadMore() {
+    if (!hasMore || loadingMore) return
+    await loadJobs(lastDoc)
+    setPage((prev) => prev + 1)
   }
 
   function clearFilters() {
@@ -95,6 +119,22 @@ export default function BrowserJobsPage() {
     setDeadline('')
     setPostedAfter('')
     setPage(1)
+  }
+
+  if (authLoading) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
+        Preparing jobs...
+      </main>
+    )
+  }
+
+  if (!user) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
+        Please sign in to view jobs.
+      </main>
+    )
   }
 
   return (
@@ -196,10 +236,13 @@ export default function BrowserJobsPage() {
         {/* Blue container with rounded jobs */}
         <div className="bg-blue-500 p-8 rounded-[40px]">
           <div className="space-y-6">
-            {pageItems.map((it) => (
-              <article
+            {loading && <div className="text-white text-sm">Loading jobs...</div>}
+            {error && <div className="bg-white rounded-lg p-6 text-center text-red-600">{error}</div>}
+            {!loading && !error && pageItems.map((it) => (
+              <Link
+                href={`/dashboard/jobs/${it.id}`}
                 key={it.id}
-                className="bg-white rounded-[28px] p-6 flex items-center gap-6 shadow-sm"
+                className="bg-white rounded-[28px] p-6 flex items-center gap-6 shadow-sm hover:shadow-md transition"
                 role="article"
                 aria-labelledby={`job-${it.id}-title`}
               >
@@ -209,10 +252,7 @@ export default function BrowserJobsPage() {
                   <div className="flex items-start gap-6 md:flex-1">
                     <div>
                       <div className="font-semibold text-lg">{it.person}</div>
-                      <div className="text-sm text-gray-500 mt-1 flex items-center gap-2">
-                        <svg className="w-3 h-3 text-gray-500" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        {it.location}
-                      </div>
+                      <div className="text-sm text-gray-500 mt-1">{it.categories?.join(", ")}</div>
                     </div>
 
                     <div className="ml-2">
@@ -224,13 +264,12 @@ export default function BrowserJobsPage() {
                   <div className="text-right text-sm text-gray-600 min-w-[180px]">
                     <div className="whitespace-nowrap">{it.startDate} <span className="mx-2">→</span> {it.endDate}</div>
                     <div className="mt-2">{it.price}</div>
-                    <div className="text-xs mt-1">{it.frequency}</div>
                   </div>
                 </div>
-              </article>
+              </Link>
             ))}
 
-            {filtered.length === 0 && (
+            {!loading && !error && filtered.length === 0 && (
               <div className="bg-white rounded-lg p-6 text-center text-gray-600">No jobs match your filters.</div>
             )}
           </div>
@@ -252,7 +291,7 @@ export default function BrowserJobsPage() {
                 <button
                   key={p}
                   onClick={() => goToPage(p)}
-                  className={`w-9 h-9 flex items-center justify-center rounded-full text-sm ${p === page ? 'bg-white text-blue-600 font-semibold' : 'bg-white/80 text-gray-700'}`}
+                  className={`w-9 h-9 flex items-center justify-center rounded-full text-sm ${p === safePage ? 'bg-white text-blue-600 font-semibold' : 'bg-white/80 text-gray-700'}`}
                 >
                   {p}
                 </button>
@@ -272,12 +311,13 @@ export default function BrowserJobsPage() {
             <button
               onClick={loadMore}
               className="px-4 py-2 rounded-lg bg-white text-sm text-blue-600 border"
+              disabled={!hasMore || loadingMore}
             >
-              Load more
+              {loadingMore ? 'Loading...' : hasMore ? 'Load more' : 'No more'}
             </button>
 
             <div className="text-sm text-gray-600">
-              Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, filtered.length)} of {filtered.length}
+              Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
             </div>
           </div>
         </div>

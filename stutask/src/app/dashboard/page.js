@@ -5,24 +5,61 @@ import { useRouter } from "next/navigation"
 import Image from 'next/image'
 import Link from 'next/link'
 import { signOut } from "firebase/auth"
+import { collection, getDocs, limit, orderBy, query } from "firebase/firestore"
 import { auth } from "../../../config"
+import { db } from "../../../config"
 import { useAuth } from "../../hooks/useAuth"
+import { formatCurrency, formatDate } from "../../utils/jobs"
 import logo from '../../../Logo.png'
 
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading } = useAuth()
   const [tab, setTab] = useState('student')
-  const [showMore, setShowMore] = useState(false)
   const [signOutError, setSignOutError] = useState("")
+  const [recommended, setRecommended] = useState([])
+  const [jobsLoading, setJobsLoading] = useState(true)
+  const [jobsError, setJobsError] = useState("")
 
-  const displayName = user?.displayName || user?.email?.split("@")[0] || "there"
+  const fullName = user?.displayName || user?.email?.split("@")[0] || "there"
+  const displayName = fullName.split(" ")[0] || fullName
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login")
     }
   }, [loading, user, router])
+
+  useEffect(() => {
+    async function loadJobs() {
+      if (!user) return
+      setJobsLoading(true)
+      setJobsError("")
+      try {
+        const q = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(4))
+        const snap = await getDocs(q)
+        const items = snap.docs.map((doc) => {
+          const data = doc.data()
+          return {
+            id: doc.id,
+            title: data?.title || "Untitled",
+            role: data?.role || "",
+            startDate: formatDate(data?.startDate),
+            endDate: formatDate(data?.endDate),
+            payout: data?.payout || { amount: 0, currency: "USD" },
+            categories: data?.categories || [],
+            createdBy: data?.createdBy || {},
+          }
+        })
+        setRecommended(items)
+      } catch (err) {
+        setJobsError("Unable to load jobs.")
+      } finally {
+        setJobsLoading(false)
+      }
+    }
+    loadJobs()
+  }, [user])
 
   async function handleSignOut() {
     setSignOutError("")
@@ -33,10 +70,6 @@ export default function DashboardPage() {
       setSignOutError("Unable to sign out. Please try again.")
     }
   }
-
-  const recommendedItems = showMore
-    ? Array.from({ length: 8 }, (_, i) => i + 1)
-    : [1, 2, 3, 4]
 
   if (loading) {
     return (
@@ -236,16 +269,25 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="bg-blue-500 p-4 rounded-3xl space-y-4">
-                  {recommendedItems.map((i)=> (
-                    <div key={i} className="bg-white rounded-xl p-4 flex items-center gap-4">
+                  {jobsLoading && <div className="text-white text-sm">Loading jobs...</div>}
+                  {jobsError && <div className="text-white text-sm">{jobsError}</div>}
+                  {!jobsLoading && !jobsError && recommended.length === 0 && (
+                    <div className="bg-white rounded-xl p-4 text-sm text-gray-600">No jobs yet.</div>
+                  )}
+                  {!jobsLoading && recommended.map((job)=> (
+                    <Link key={job.id} href={`/dashboard/jobs/${job.id}`} className="bg-white rounded-xl p-4 flex items-center gap-4 hover:shadow-sm transition">
                       <div className="w-12 h-12 rounded-full bg-gray-200" />
                       <div className="flex-1">
                         <div className="text-sm text-gray-500">Recommended</div>
-                        <div className="font-semibold">Person name</div>
-                        <div className="text-xs text-gray-500">Project title • Role title</div>
+                        <div className="font-semibold">{job.createdBy?.fullName || job.createdBy?.email || "Unknown"}</div>
+                        <div className="text-xs text-gray-500">{job.title} • {job.role}</div>
+                        <div className="text-[11px] text-gray-500 mt-1">{job.categories?.join(", ")}</div>
                       </div>
-                      <div className="text-sm text-gray-600">Start date<br/>Rp. 3,000,000</div>
-                    </div>
+                      <div className="text-sm text-gray-600 text-right min-w-[110px]">
+                        <div>{job.startDate} → {job.endDate}</div>
+                        <div className="mt-1">{formatCurrency(job.payout)}</div>
+                      </div>
+                    </Link>
                   ))}
                 </div>
               </div>

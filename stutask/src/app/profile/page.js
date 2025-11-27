@@ -35,7 +35,8 @@ export default function ProfilePage(){
     )
   }
 
-  const name = user.displayName || user.email?.split("@")[0] || "User"
+  const fullName = user.displayName || user.email?.split("@")[0] || "User"
+  const name = fullName.split(" ")[0] || fullName
 
   async function handleSignOut() {
     try {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth"
@@ -40,11 +40,9 @@ export default function LoginPage() {
   const heading = isSignup ? "SIGN UP" : "LOGIN"
   const ctaText = isSignup ? "REGISTER" : "LOGIN"
 
-  const derivedName = useMemo(() => email.split("@")[0] || "", [email])
-
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/dashboard")
+      router.replace(user.displayName ? "/dashboard" : "/welcome")
     }
   }, [authLoading, user, router])
 
@@ -66,13 +64,15 @@ export default function LoginPage() {
     try {
       if (isSignup) {
         const credentials = await createUserWithEmailAndPassword(auth, email, password)
-        if (!credentials.user.displayName) {
-          await updateProfile(credentials.user, { displayName: derivedName || "New user" })
-        }
+        await updateProfile(credentials.user, { displayName: "" })
+        router.replace("/welcome")
+        return
       } else {
-        await signInWithEmailAndPassword(auth, email, password)
+        const credentials = await signInWithEmailAndPassword(auth, email, password)
+        const needsName = !credentials.user.displayName
+        router.replace(needsName ? "/welcome" : "/dashboard")
+        return
       }
-      router.replace("/dashboard")
     } catch (err) {
       setError(getErrorMessage(err?.code))
     } finally {
