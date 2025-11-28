@@ -41,8 +41,9 @@ export default function WelcomePage() {
         fullName: fullName.trim(),
         email: auth.currentUser.email,
         createdAt: serverTimestamp(),
+        skills: [],
       })
-      router.replace("/dashboard")
+      router.replace("/welcome/skills")
     } catch (err) {
       setError("Could not save your name. Please try again.")
     } finally {

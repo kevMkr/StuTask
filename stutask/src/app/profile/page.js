@@ -7,10 +7,12 @@ import Link from 'next/link'
 import { signOut } from "firebase/auth"
 import { auth } from '../../../config'
 import { useAuth } from '../../hooks/useAuth'
+import { useUserProfile } from '../../hooks/useUserProfile'
 import logo from '../../../Logo.png'
 
 export default function ProfilePage(){
   const { user, loading } = useAuth()
+  const { profile, loading: profileLoading } = useUserProfile(user?.uid)
   const router = useRouter()
 
   useEffect(() => {
@@ -19,7 +21,7 @@ export default function ProfilePage(){
     }
   }, [loading, user, router])
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
         Loading profile...
@@ -58,7 +60,7 @@ export default function ProfilePage(){
           </div>
           <div className="text-sm text-gray-600 flex items-center gap-4">
             <Link href="/dashboard" className="hover:underline">Back</Link>
-            <button onClick={handleSignOut} className="hover:underline">Sign out</button>
+            <button onClick={handleSignOut} className="hover:underline">Logout</button>
           </div>
         </div>
       </header>
@@ -81,6 +83,28 @@ export default function ProfilePage(){
         <section className="mt-8 bg-white border rounded-lg p-6">
           <h2 className="text-lg font-semibold mb-3">About</h2>
           <p className="text-sm text-gray-600">Your profile uses the details from your StuTask account. Add more fields when you connect a real profile store.</p>
+        </section>
+
+        <section className="mt-6 bg-white border rounded-lg p-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-lg font-semibold">Personalization</h2>
+              <p className="text-sm text-gray-600">We use your skills to recommend better jobs.</p>
+            </div>
+            <Link href="/profile/personalization" className="text-sm text-blue-600 hover:underline">Edit</Link>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(profile?.skills || []).length > 0 ? (
+              profile.skills.map((skill) => (
+                <span key={skill} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-100">
+                  {skill}
+                </span>
+              ))
+            ) : (
+              <p className="text-sm text-gray-600">No skills added yet. Click edit to personalize your recommendations.</p>
+            )}
+          </div>
         </section>
       </div>
     </main>

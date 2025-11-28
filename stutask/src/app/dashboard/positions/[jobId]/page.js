@@ -1,37 +1,74 @@
 "use client"
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { addDoc, collection, serverTimestamp } from "firebase/firestore"
-import { db } from '../../../../config'
-import { useAuth } from '../../../hooks/useAuth'
-import { SKILL_OPTIONS } from "../../../constants/skills"
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import Link from "next/link"
+import { doc, getDoc, updateDoc } from "firebase/firestore"
+import { db } from "../../../../../config"
+import { useAuth } from "../../../../hooks/useAuth"
+import { SKILL_OPTIONS } from "../../../../constants/skills"
 
-export default function NewJobPage(){
+export default function EditPositionPage() {
   const router = useRouter()
-  const { user, loading } = useAuth()
-
+  const { jobId } = useParams()
+  const { user, loading: authLoading } = useAuth()
   const [form, setForm] = useState({
-    title: '',
-    role: '',
-    payout: '',
-    currency: 'IDR',
-    description: '',
+    title: "",
+    role: "",
+    payout: "",
+    currency: "IDR",
+    description: "",
     categories: [],
-    maxProposals: '',
+    maxProposals: "",
+    status: "open",
   })
-  const [error, setError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [success, setSuccess] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [categorySearch, setCategorySearch] = useState("")
   const [categoriesOpen, setCategoriesOpen] = useState(false)
-  const [categorySearch, setCategorySearch] = useState('')
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (authLoading) return
+    if (!user) {
       router.replace("/login")
+      return
     }
-  }, [loading, user, router])
+
+    async function load() {
+      setLoading(true)
+      setError("")
+      try {
+        const ref = doc(db, "jobs", jobId)
+        const snap = await getDoc(ref)
+        if (!snap.exists()) {
+          setError("Job not found.")
+          return
+        }
+        const data = snap.data()
+        if (data?.createdBy?.uid !== user.uid) {
+          setError("You cannot edit this job.")
+          return
+        }
+        setForm({
+          title: data?.title || "",
+          role: data?.role || "",
+          payout: data?.payout?.amount || "",
+          currency: data?.payout?.currency || "IDR",
+          description: data?.description || "",
+          categories: data?.categories || [],
+          maxProposals: data?.maxProposals || "",
+          status: data?.status || "open",
+        })
+      } catch (err) {
+        setError("Unable to load job.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [authLoading, user, jobId, router])
 
   function handleChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -40,31 +77,24 @@ export default function NewJobPage(){
   function toggleSkill(skill) {
     setForm((prev) => {
       const exists = prev.categories.includes(skill)
-      const categories = exists
-        ? prev.categories.filter((s) => s !== skill)
-        : [...prev.categories, skill]
+      const categories = exists ? prev.categories.filter((s) => s !== skill) : [...prev.categories, skill]
       return { ...prev, categories }
     })
   }
 
-  async function handleSubmit(e){
+  async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
-    setSuccess('')
+    setError("")
+    if (!user) return
 
     if (!form.title || !form.role || !form.description || !form.payout || !form.currency || !form.maxProposals) {
-      setError('Please fill in all required fields.')
+      setError("Please fill all required fields.")
       return
     }
 
-    if (!user) {
-      setError('You must be signed in to post a job.')
-      return
-    }
-
-    setSubmitting(true)
+    setSaving(true)
     try {
-      const docRef = await addDoc(collection(db, "jobs"), {
+      await updateDoc(doc(db, "jobs", jobId), {
         title: form.title,
         role: form.role,
         payout: {
@@ -74,49 +104,42 @@ export default function NewJobPage(){
         description: form.description,
         categories: form.categories,
         maxProposals: Number(form.maxProposals),
-        status: "open",
-        createdBy: {
-          uid: user.uid,
-          fullName: user.displayName || user.email,
-          email: user.email,
-        },
-        createdAt: serverTimestamp(),
+        status: form.status,
       })
-
-      setSuccess('Job published!')
-      setForm({
-        title: '',
-        role: '',
-        payout: '',
-        currency: 'IDR',
-        description: '',
-        categories: [],
-        maxProposals: '',
-      })
-
-      // Navigate to job list or dashboard
-      router.push("/dashboard/jobs")
+      router.replace("/dashboard/positions")
     } catch (err) {
-      setError('Unable to publish job. Please try again.')
+      setError("Unable to save changes.")
     } finally {
-      setSubmitting(false)
+      setSaving(false)
     }
   }
 
-  if (loading || (!user && !error)) {
+  if (authLoading || loading) {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
-        Preparing editor...
+        Loading...
+      </main>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center text-gray-600">
+        {error}
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-white">
-      <div className="max-w-4xl mx-auto p-8">
+    <main className="min-h-screen bg-white py-8">
+      <div className="max-w-4xl mx-auto px-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Create new job post</h1>
-          <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">Back</Link>
+          <h1 className="text-2xl font-semibold">Edit job post</h1>
+          <Link href="/dashboard/positions" className="text-sm text-gray-600 hover:underline">Back</Link>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 bg-white border rounded-2xl p-8 shadow-sm">
@@ -260,17 +283,16 @@ export default function NewJobPage(){
           </div>
 
           {error && <p className="text-sm text-red-600" aria-live="polite">{error}</p>}
-          {success && <p className="text-sm text-green-600" aria-live="polite">{success}</p>}
 
           <div className="flex items-center gap-3">
             <button
               type="submit"
-              disabled={submitting}
+              disabled={saving}
               className="bg-blue-500 text-white px-4 py-2 rounded-2xl disabled:opacity-70"
             >
-              {submitting ? 'Publishing...' : 'Publish job'}
+              {saving ? 'Saving...' : 'Save changes'}
             </button>
-            <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">Cancel</Link>
+            <Link href="/dashboard/positions" className="text-sm text-gray-600 hover:underline">Cancel</Link>
           </div>
         </form>
       </div>

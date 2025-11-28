@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from 'next/image'
 import Link from 'next/link'
@@ -9,7 +9,8 @@ import { collection, getDocs, limit, orderBy, query } from "firebase/firestore"
 import { auth } from "../../../config"
 import { db } from "../../../config"
 import { useAuth } from "../../hooks/useAuth"
-import { formatCurrency, formatDate } from "../../utils/jobs"
+import { useUserProfile } from "../../hooks/useUserProfile"
+import { formatCurrency } from "../../utils/jobs"
 import logo from '../../../Logo.png'
 
 export default function DashboardPage() {
@@ -17,9 +18,11 @@ export default function DashboardPage() {
   const { user, loading } = useAuth()
   const [tab, setTab] = useState('student')
   const [signOutError, setSignOutError] = useState("")
-  const [recommended, setRecommended] = useState([])
+  const [jobs, setJobs] = useState([])
   const [jobsLoading, setJobsLoading] = useState(true)
   const [jobsError, setJobsError] = useState("")
+  const { profile, loading: profileLoading } = useUserProfile(user?.uid)
+  const hasSkills = (profile?.skills || []).length > 0
 
   const fullName = user?.displayName || user?.email?.split("@")[0] || "there"
   const displayName = fullName.split(" ")[0] || fullName
@@ -36,7 +39,11 @@ export default function DashboardPage() {
       setJobsLoading(true)
       setJobsError("")
       try {
-        const q = query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(4))
+        const q = query(
+          collection(db, "jobs"),
+          orderBy("createdAt", "desc"),
+          limit(20) // grab more so personalization still has options
+        )
         const snap = await getDocs(q)
         const items = snap.docs.map((doc) => {
           const data = doc.data()
@@ -44,14 +51,16 @@ export default function DashboardPage() {
             id: doc.id,
             title: data?.title || "Untitled",
             role: data?.role || "",
-            startDate: formatDate(data?.startDate),
-            endDate: formatDate(data?.endDate),
             payout: data?.payout || { amount: 0, currency: "USD" },
             categories: data?.categories || [],
             createdBy: data?.createdBy || {},
+            status: data?.status || "open",
+            maxProposals: data?.maxProposals || null,
+            ownerUid: data?.createdBy?.uid || "",
           }
         })
-        setRecommended(items)
+        const filtered = items.filter((job) => job.ownerUid !== user.uid)
+        setJobs(filtered)
       } catch (err) {
         setJobsError("Unable to load jobs.")
       } finally {
@@ -60,6 +69,22 @@ export default function DashboardPage() {
     }
     loadJobs()
   }, [user])
+
+  const personalizedJobs = useMemo(() => {
+    const skills = (profile?.skills || []).map((s) => s.toLowerCase())
+    if (skills.length === 0) {
+      return jobs.slice(0, 4)
+    }
+
+    const minimumMatches = Math.ceil(skills.length * 0.5)
+    const filtered = jobs.filter((job) => {
+      const categories = (job.categories || []).map((c) => c.toLowerCase())
+      const matches = categories.filter((cat) => skills.includes(cat)).length
+      return matches >= minimumMatches
+    })
+
+    return filtered.slice(0, 4)
+  }, [jobs, profile])
 
   async function handleSignOut() {
     setSignOutError("")
@@ -95,9 +120,8 @@ export default function DashboardPage() {
             <Image src={logo} alt="StuTask" width={120} height={36} />
           </div>
           <div className="text-sm text-gray-600 flex items-center gap-6">
-            <a href="#" className="hover:underline">Upgrade to Pro</a>
             <Link href="/profile" className="hover:underline">Account</Link>
-            <button onClick={handleSignOut} className="text-gray-700 hover:underline">Sign out</button>
+            <button onClick={handleSignOut} className="text-gray-700 hover:underline">Logout</button>
           </div>
         </div>
       </header>
@@ -269,26 +293,46 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="bg-blue-500 p-4 rounded-3xl space-y-4">
+                  {profileLoading && <div className="text-white text-sm">Loading your preferences...</div>}
                   {jobsLoading && <div className="text-white text-sm">Loading jobs...</div>}
                   {jobsError && <div className="text-white text-sm">{jobsError}</div>}
-                  {!jobsLoading && !jobsError && recommended.length === 0 && (
-                    <div className="bg-white rounded-xl p-4 text-sm text-gray-600">No jobs yet.</div>
+                  {!jobsLoading && !jobsError && personalizedJobs.length === 0 && (
+                    <div className="bg-white rounded-xl p-4 text-sm text-gray-600">
+                      {hasSkills ? "No jobs match your skills yet." : "No jobs yet."}
+                    </div>
                   )}
-                  {!jobsLoading && recommended.map((job)=> (
+                  {!jobsLoading && personalizedJobs.map((job)=> (
                     <Link key={job.id} href={`/dashboard/jobs/${job.id}`} className="bg-white rounded-xl p-4 flex items-center gap-4 hover:shadow-sm transition">
                       <div className="w-12 h-12 rounded-full bg-gray-200" />
                       <div className="flex-1">
                         <div className="text-sm text-gray-500">Recommended</div>
                         <div className="font-semibold">{job.createdBy?.fullName || job.createdBy?.email || "Unknown"}</div>
                         <div className="text-xs text-gray-500">{job.title} • {job.role}</div>
-                        <div className="text-[11px] text-gray-500 mt-1">{job.categories?.join(", ")}</div>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(job.categories || []).map((cat) => (
+                            <span key={cat} className="px-2 py-1 text-[11px] bg-blue-50 text-blue-700 rounded-full border border-blue-100">
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded-full border ${job.status === "open" ? "border-green-500 text-green-600" : "border-gray-400 text-gray-600"}`}>
+                            {job.status === "open" ? "Open" : "Closed"}
+                          </span>
+                          {job.maxProposals ? <span>Max proposals: {job.maxProposals}</span> : null}
+                        </div>
                       </div>
                       <div className="text-sm text-gray-600 text-right min-w-[110px]">
-                        <div>{job.startDate} → {job.endDate}</div>
-                        <div className="mt-1">{formatCurrency(job.payout)}</div>
+                        <div className="font-semibold">{formatCurrency(job.payout)}</div>
+                        <div className="text-xs text-gray-500">Estimated budget</div>
                       </div>
                     </Link>
                   ))}
+                  {!hasSkills && !jobsLoading && !jobsError && (
+                    <div className="bg-white/20 text-white text-sm rounded-xl p-4 border border-white/30">
+                      Add your skills on the <Link href="/profile/personalization" className="underline font-semibold">personalization page</Link> to tailor recommendations.
+                    </div>
+                  )}
                 </div>
               </div>
             )}

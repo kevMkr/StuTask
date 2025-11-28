@@ -38,12 +38,13 @@ export default function JobDetailPage() {
           id: snap.id,
           title: data?.title || "Untitled",
           role: data?.role || "",
-          startDate: formatDate(data?.startDate),
-          endDate: formatDate(data?.endDate),
           payout: data?.payout || { amount: 0, currency: "USD" },
           description: data?.description || "",
           categories: data?.categories || [],
           createdBy: data?.createdBy || {},
+          status: data?.status || "open",
+          maxProposals: data?.maxProposals || null,
+          postedDate: formatDate(data?.createdAt),
         })
       } catch (err) {
         setError("Unable to load job.")
@@ -72,36 +73,80 @@ export default function JobDetailPage() {
 
   return (
     <main className="min-h-screen bg-white py-10">
-      <div className="max-w-5xl mx-auto px-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <Link href="/dashboard/jobs" className="text-sm text-gray-600 hover:underline">← Back to jobs</Link>
-          <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">Dashboard</Link>
+      <div className="max-w-5xl mx-auto px-6 space-y-8">
+        <div className="flex flex-col items-start gap-3">
+          <Link href="/dashboard/jobs" className="text-sm text-gray-600 hover:underline" aria-label="Back to jobs">
+            ← Back
+          </Link>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl font-semibold text-gray-900">{job.title}</h1>
+            <div className="flex items-center gap-3 text-sm text-gray-600">
+              <span>Posted {job.postedDate || "recently"}</span>
+              <span className="w-1 h-1 rounded-full bg-gray-400 inline-block" aria-hidden />
+              <span>{job.createdBy?.fullName || job.createdBy?.email || "Unknown"}</span>
+              <span className="w-1 h-1 rounded-full bg-gray-400 inline-block" aria-hidden />
+              <span className={`px-3 py-1 rounded-full border text-xs ${job.status === "open" ? "border-green-500 text-green-600" : "border-gray-400 text-gray-600"}`}>
+                {job.status === "open" ? "Open" : "Closed"}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {job.categories.map((cat) => (
+                <span key={cat} className="px-3 py-1 text-xs bg-blue-50 text-blue-700 rounded-full border border-blue-100">
+                  {cat}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <section className="bg-white border rounded-3xl p-8 shadow-sm space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-sm text-gray-500">Posted by</div>
-              <div className="text-xl font-semibold">{job.createdBy?.fullName || job.createdBy?.email || "Unknown"}</div>
-              <div className="text-sm text-gray-500 mt-1">{job.categories.join(", ")}</div>
+        <section className="bg-white border rounded-3xl p-8 shadow-sm space-y-8">
+          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+            {job.description}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border rounded-2xl p-4 bg-gray-50">
+            <div className="flex items-start gap-3">
+              <div className="mt-1 text-gray-500">💰</div>
+              <div>
+                <div className="font-semibold text-gray-900">{formatCurrency(job.payout)}</div>
+                <div className="text-xs text-gray-600">Estimated budget</div>
+              </div>
             </div>
-            <div className="text-right text-sm text-gray-600">
-              <div>{job.startDate} → {job.endDate}</div>
-              <div className="mt-1 font-semibold">{formatCurrency(job.payout)}</div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1 text-gray-500">🧩</div>
+              <div>
+                <div className="font-semibold text-gray-900">Role</div>
+                <div className="text-sm text-gray-600">{job.role || "Not specified"}</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1 text-gray-500">📬</div>
+              <div>
+                <div className="font-semibold text-gray-900">Max proposals</div>
+                <div className="text-sm text-gray-600">{job.maxProposals ? job.maxProposals : "Not set"}</div>
+              </div>
             </div>
           </div>
 
-          <div>
-            <h1 className="text-2xl font-bold">{job.title}</h1>
-            <p className="text-gray-600 mt-1">{job.role}</p>
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-900">Skills and expertise</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {job.categories.length > 0 ? (
+                job.categories.map((cat) => (
+                  <span key={cat} className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-full border border-blue-100">
+                    {cat}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-gray-600">No skills listed.</span>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <h2 className="text-lg font-semibold">Description</h2>
-            <p className="text-sm text-gray-700 whitespace-pre-line">{job.description}</p>
-          </div>
-
-          <div className="pt-4">
+          <div className="pt-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Posted by <span className="font-semibold text-gray-800">{job.createdBy?.fullName || job.createdBy?.email || "Unknown"}</span>
+            </div>
             <button className="bg-blue-600 text-white px-5 py-3 rounded-2xl">Apply</button>
           </div>
         </section>

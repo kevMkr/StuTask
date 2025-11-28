@@ -48,18 +48,20 @@ export default function BrowserJobsPage() {
           person: data?.createdBy?.fullName || data?.createdBy?.email || "Unknown",
           project: data?.title || "Untitled",
           role: data?.role || "",
-          startDate: formatDate(data?.startDate),
-          endDate: formatDate(data?.endDate),
           postedDate: formatDate(data?.createdAt),
           payout: data?.payout,
           priceNumber: Number(data?.payout?.amount) || 0,
           price: formatCurrency(data?.payout || { amount: 0, currency: "USD" }),
           frequency: "",
           categories: data?.categories || [],
+          status: data?.status || "open",
+          maxProposals: data?.maxProposals || null,
+          ownerUid: data?.createdBy?.uid || "",
         }
       })
 
-      setItems((prev) => (isLoadMore ? [...prev, ...docs] : docs))
+      const filteredDocs = docs.filter((it) => it.ownerUid !== user.uid)
+      setItems((prev) => (isLoadMore ? [...prev, ...filteredDocs] : filteredDocs))
       const last = snap.docs[snap.docs.length - 1] || null
       setLastDoc(last)
       setHasMore(snap.docs.length === PAGE_SIZE)
@@ -148,23 +150,17 @@ export default function BrowserJobsPage() {
                 <img src={logo.src || logo} alt="StuTask" className="w-32 h-auto" />
               </Link>
             </div>
-
-            <div className="flex items-center gap-6 text-sm text-gray-600">
-              <a href="#" className="hover:underline">Upgrade to Pro</a>
-              <Link href="/profile" className="hover:underline">Account</Link>
-            </div>
           </div>
         </header>
 
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold">Browse jobs</h1>
-          <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">← Back to dashboard</Link>
+          <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">← &nbsp; Back</Link>
         </div>
 
         {/* Filters row (pills + inputs) */}
         <div className="mb-6 flex flex-col gap-4">
           <div className="flex items-center gap-3 overflow-x-auto">
-            <button className="p-2 rounded-full border bg-white text-sm">‹</button>
             <div className="flex gap-3">
               {/* Project title becomes input */}
               <input
@@ -246,24 +242,37 @@ export default function BrowserJobsPage() {
                 role="article"
                 aria-labelledby={`job-${it.id}-title`}
               >
-                <div className="w-24 h-24 rounded-full bg-gray-200 flex-shrink-0" />
+                <div className="w-24 h-24 rounded-full bg-gray-200" />
 
                 <div className="flex-1 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="flex items-start gap-6 md:flex-1">
                     <div>
                       <div className="font-semibold text-lg">{it.person}</div>
-                      <div className="text-sm text-gray-500 mt-1">{it.categories?.join(", ")}</div>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {(it.categories || []).map((cat) => (
+                        <span key={cat} className="px-2 py-1 text-[11px] bg-blue-50 text-blue-700 rounded-full border border-blue-100">
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
                     </div>
 
                     <div className="ml-2">
                       <div id={`job-${it.id}-title`} className="font-semibold text-lg">{it.project}</div>
-                      <div className="text-sm text-gray-500 mt-1">{it.role}</div>
+                      <div className="text-sm text-gray-500">{it.role}</div>
+                      <div className="text-xs text-gray-500 mt-3">Posted {it.postedDate || "—"}</div>
                     </div>
                   </div>
 
                   <div className="text-right text-sm text-gray-600 min-w-[180px]">
-                    <div className="whitespace-nowrap">{it.startDate} <span className="mx-2">→</span> {it.endDate}</div>
-                    <div className="mt-2">{it.price}</div>
+                    <div className="mt-1 text-xs text-gray-500">Estimated budget</div>
+                    <div className="whitespace-nowrap font-semibold">{it.price}</div>
+                    <div className="mt-2 inline-flex items-center justify-end gap-2 text-xs">
+                      <span className={`px-2 py-1 rounded-full border ${it.status === "open" ? "border-green-500 text-green-600" : "border-gray-400 text-gray-600"}`}>
+                        {it.status === "open" ? "Open" : "Closed"}
+                      </span>
+                      {it.maxProposals ? <span className="text-gray-500">Max proposals: {it.maxProposals}</span> : null}
+                    </div>
                   </div>
                 </div>
               </Link>
