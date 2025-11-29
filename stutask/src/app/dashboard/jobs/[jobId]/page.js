@@ -147,7 +147,12 @@ export default function JobDetailPage() {
             <div className="text-sm text-gray-600">
               Posted by <span className="font-semibold text-gray-800">{job.createdBy?.fullName || job.createdBy?.email || "Unknown"}</span>
             </div>
-            <button className="bg-blue-600 text-white px-5 py-3 rounded-2xl">Apply</button>
+            <Link
+              href={`/dashboard/jobs/${job.id}/apply`}
+              className="bg-blue-600 text-white px-5 py-3 rounded-2xl inline-flex items-center justify-center"
+            >
+              Apply
+            </Link>
           </div>
         </section>
       </div>
