@@ -1,4 +1,5 @@
 "use client"
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useState } from "react"
 import { doc, onSnapshot } from "firebase/firestore"
@@ -11,10 +12,13 @@ export function useUserProfile(uid) {
 
   useEffect(() => {
     if (!uid) {
-      setLoading(false)
       setProfile(null)
+      setError("")
+      setLoading(false)
       return undefined
     }
+
+    setLoading(true)
 
     const ref = doc(db, "users", uid)
     const unsubscribe = onSnapshot(

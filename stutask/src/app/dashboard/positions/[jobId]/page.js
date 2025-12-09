@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { doc, getDoc, updateDoc } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore"
 import { db } from "../../../../../config"
 import { useAuth } from "../../../../hooks/useAuth"
 import { SKILL_OPTIONS } from "../../../../constants/skills"
@@ -27,6 +27,7 @@ export default function EditPositionPage() {
   const [saving, setSaving] = useState(false)
   const [categorySearch, setCategorySearch] = useState("")
   const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [meta, setMeta] = useState({ totalProposals: 0, hasHire: false })
 
   useEffect(() => {
     if (authLoading) return
@@ -50,6 +51,16 @@ export default function EditPositionPage() {
           setError("You cannot edit this job.")
           return
         }
+        let totalProposals = 0
+        let hasHire = false
+        try {
+          const appsSnap = await getDocs(query(collection(db, "applications"), where("jobId", "==", jobId)))
+          totalProposals = appsSnap.size
+          hasHire = appsSnap.docs.some((app) => app.data()?.status === "Hired")
+        } catch {
+          // ignore meta load errors
+        }
+        setMeta({ totalProposals, hasHire })
         setForm({
           title: data?.title || "",
           role: data?.role || "",
@@ -89,6 +100,11 @@ export default function EditPositionPage() {
 
     if (!form.title || !form.role || !form.description || !form.payout || !form.currency || !form.maxProposals) {
       setError("Please fill all required fields.")
+      return
+    }
+    const atLimit = Number(form.maxProposals) && meta.totalProposals >= Number(form.maxProposals)
+    if (form.status === "open" && (meta.hasHire || atLimit)) {
+      setError("Cannot reopen: hire confirmed or proposal limit reached.")
       return
     }
 

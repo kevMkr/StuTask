@@ -32,8 +32,9 @@ export default function ApplicantProfilePage() {
           return
         }
         const appData = { id: appSnap.id, ...appSnap.data() }
-        if (appData.employerId !== user.uid || appData.status !== "Short-listed") {
-          setError("You can only view short-listed applicants.")
+        const canView = appData.employerId === user.uid && (appData.status === "Short-listed" || appData.status === "Hired")
+        if (!canView) {
+          setError("You can only view short-listed or hired applicants.")
           return
         }
         setApp(appData)

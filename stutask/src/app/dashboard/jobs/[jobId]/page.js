@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { doc, getDoc } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore"
 import { db } from "../../../../../config"
 import { useAuth } from "../../../../hooks/useAuth"
 import { formatCurrency, formatDate } from "../../../../utils/jobs"
@@ -15,6 +15,7 @@ export default function JobDetailPage() {
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [meta, setMeta] = useState({ totalProposals: 0, hasHire: false })
 
   useEffect(() => {
     if (authLoading) return
@@ -34,6 +35,16 @@ export default function JobDetailPage() {
           return
         }
         const data = snap.data()
+        let totalProposals = 0
+        let hasHire = false
+        try {
+          const appsSnap = await getDocs(query(collection(db, "applications"), where("jobId", "==", snap.id)))
+          totalProposals = appsSnap.size
+          hasHire = appsSnap.docs.some((d) => d.data()?.status === "Hired")
+        } catch {
+          // ignore meta load errors
+        }
+        setMeta({ totalProposals, hasHire })
         setJob({
           id: snap.id,
           title: data?.title || "Untitled",
@@ -54,6 +65,9 @@ export default function JobDetailPage() {
     }
     load()
   }, [authLoading, user, jobId, router])
+
+  const atProposalLimit = job?.maxProposals && meta.totalProposals >= job.maxProposals
+  const applicationsClosed = !job || job.status !== "open" || meta.hasHire || atProposalLimit
 
   if (authLoading || loading) {
     return (
@@ -85,8 +99,8 @@ export default function JobDetailPage() {
               <span className="w-1 h-1 rounded-full bg-gray-400 inline-block" aria-hidden />
               <span>{job.createdBy?.fullName || job.createdBy?.email || "Unknown"}</span>
               <span className="w-1 h-1 rounded-full bg-gray-400 inline-block" aria-hidden />
-              <span className={`px-3 py-1 rounded-full border text-xs ${job.status === "open" ? "border-green-500 text-green-600" : "border-gray-400 text-gray-600"}`}>
-                {job.status === "open" ? "Open" : "Closed"}
+              <span className={`px-3 py-1 rounded-full border text-xs ${applicationsClosed ? "border-gray-400 text-gray-600" : "border-green-500 text-green-600"}`}>
+                {applicationsClosed ? "Closed" : "Open"}
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -143,16 +157,24 @@ export default function JobDetailPage() {
             </div>
           </div>
 
-          <div className="pt-4 flex items-center justify-between">
+          <div className="pt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="text-sm text-gray-600">
               Posted by <span className="font-semibold text-gray-800">{job.createdBy?.fullName || job.createdBy?.email || "Unknown"}</span>
             </div>
-            <Link
-              href={`/dashboard/jobs/${job.id}/apply`}
-              className="bg-blue-600 text-white px-5 py-3 rounded-2xl inline-flex items-center justify-center"
-            >
-              Apply
-            </Link>
+            <div className="flex flex-col items-start md:items-end gap-2">
+              {applicationsClosed && (
+                <div className="text-xs text-red-600">
+                  Applications are closed {meta.hasHire ? "(hire confirmed)" : atProposalLimit ? "(proposal limit reached)" : ""}.
+                </div>
+              )}
+              <Link
+                href={applicationsClosed ? "#" : `/dashboard/jobs/${job.id}/apply`}
+                aria-disabled={applicationsClosed}
+                className={`px-5 py-3 rounded-2xl inline-flex items-center justify-center ${applicationsClosed ? "bg-gray-300 text-gray-600 cursor-not-allowed" : "bg-blue-600 text-white"}`}
+              >
+                Apply
+              </Link>
+            </div>
           </div>
         </section>
       </div>

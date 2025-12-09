@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { collection, getDocs, limit, orderBy, query, startAfter } from "firebase/firestore"
+import { collection, getDocs, limit, orderBy, query, startAfter, where } from "firebase/firestore"
 import { db } from "../../../../config"
 import { useAuth } from "../../../hooks/useAuth"
 import { formatCurrency, formatDate } from "../../../utils/jobs"
@@ -41,26 +41,45 @@ export default function BrowserJobsPage() {
         ? query(collection(db, "jobs"), orderBy("createdAt", "desc"), startAfter(cursor), limit(PAGE_SIZE))
         : query(collection(db, "jobs"), orderBy("createdAt", "desc"), limit(PAGE_SIZE))
       const snap = await getDocs(q)
-      const docs = snap.docs.map((doc) => {
-        const data = doc.data()
-        return {
-          id: doc.id,
-          person: data?.createdBy?.fullName || data?.createdBy?.email || "Unknown",
-          project: data?.title || "Untitled",
-          role: data?.role || "",
-          postedDate: formatDate(data?.createdAt),
-          payout: data?.payout,
-          priceNumber: Number(data?.payout?.amount) || 0,
-          price: formatCurrency(data?.payout || { amount: 0, currency: "USD" }),
-          frequency: "",
-          categories: data?.categories || [],
-          status: data?.status || "open",
-          maxProposals: data?.maxProposals || null,
-          ownerUid: data?.createdBy?.uid || "",
-        }
-      })
+      const docs = await Promise.all(
+        snap.docs.map(async (docSnap) => {
+          const data = docSnap.data()
+          let totalProposals = 0
+          let hasHire = false
+          try {
+            const appsSnap = await getDocs(query(collection(db, "applications"), where("jobId", "==", docSnap.id)))
+            totalProposals = appsSnap.size
+            hasHire = appsSnap.docs.some((d) => d.data()?.status === "Hired")
+          } catch {
+            // ignore counting errors to keep browse working
+          }
+          return {
+            id: docSnap.id,
+            person: data?.createdBy?.fullName || data?.createdBy?.email || "Unknown",
+            project: data?.title || "Untitled",
+            role: data?.role || "",
+            postedDate: formatDate(data?.createdAt),
+            payout: data?.payout,
+            priceNumber: Number(data?.payout?.amount) || 0,
+            price: formatCurrency(data?.payout || { amount: 0, currency: "USD" }),
+            frequency: "",
+            categories: data?.categories || [],
+            status: data?.status || "open",
+            maxProposals: data?.maxProposals || null,
+            ownerUid: data?.createdBy?.uid || "",
+            totalProposals,
+            hasHire,
+          }
+        })
+      )
 
-      const filteredDocs = docs.filter((it) => it.ownerUid !== user.uid)
+      const filteredDocs = docs.filter((it) => {
+        if (it.ownerUid === user.uid) return false
+        if (it.status !== "open") return false
+        if (it.hasHire) return false
+        if (it.maxProposals && it.totalProposals >= it.maxProposals) return false
+        return true
+      })
       setItems((prev) => (isLoadMore ? [...prev, ...filteredDocs] : filteredDocs))
       const last = snap.docs[snap.docs.length - 1] || null
       setLastDoc(last)
@@ -272,6 +291,9 @@ export default function BrowserJobsPage() {
                         {it.status === "open" ? "Open" : "Closed"}
                       </span>
                       {it.maxProposals ? <span className="text-gray-500">Max proposals: {it.maxProposals}</span> : null}
+                      {typeof it.totalProposals === "number" && (
+                        <span className="text-gray-500">Proposals: {it.totalProposals}</span>
+                      )}
                     </div>
                   </div>
                 </div>

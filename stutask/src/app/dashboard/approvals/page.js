@@ -10,6 +10,7 @@ const STATUS_COLORS = {
   Pending: "text-yellow-600 bg-yellow-50 border-yellow-100",
   "Short-listed": "text-green-600 bg-green-50 border-green-100",
   Rejected: "text-red-600 bg-red-50 border-red-100",
+  Hired: "text-green-700 bg-green-50 border-green-200",
 }
 
 export default function ApprovalsPage() {
@@ -34,7 +35,7 @@ export default function ApprovalsPage() {
         const snap = await getDocs(q)
         const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
         const rejected = data.filter((d) => d.status === "Rejected")
-        const active = data.filter((d) => d.status !== "Rejected")
+        const active = data.filter((d) => d.status !== "Rejected" && d.status !== "Hired")
         setRejectedNotices(rejected.map((d) => ({ id: d.id, title: d.jobTitle || "this project" })))
         setItems(active)
       } catch (err) {
@@ -68,6 +69,7 @@ export default function ApprovalsPage() {
         <div className="flex flex-col items-start gap-2">
           <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">← Back</Link>
           <h1 className="text-2xl font-semibold">My applications</h1>
+          <p className="text-sm text-gray-600">Hired projects now appear in <Link className="text-blue-600 underline" href="/dashboard/projects">Projects</Link>.</p>
         </div>
 
         {rejectedNotices.map((notice) => (
@@ -110,7 +112,7 @@ export default function ApprovalsPage() {
                 <span className={`px-3 py-1 rounded-full border text-xs ${STATUS_COLORS[app.status] || "text-gray-600 border-gray-200"}`}>
                   {app.status}
                 </span>
-                {app.status === "Short-listed" && (
+                {(app.status === "Short-listed" || app.status === "Hired") && (
                   <Link href={`/dashboard/chat/${app.id}`} className="text-sm text-blue-600 hover:underline">
                     Message employer
                   </Link>

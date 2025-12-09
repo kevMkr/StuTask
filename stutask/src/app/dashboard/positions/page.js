@@ -30,19 +30,41 @@ export default function PositionsPage() {
         // Using only a where filter to avoid composite index requirement; ordering is done client-side.
         const q = query(collection(db, "jobs"), where("createdBy.uid", "==", user.uid))
         const snap = await getDocs(q)
-        const items = snap.docs.map((d) => {
-          const data = d.data()
-          return {
-            id: d.id,
-            title: data?.title || "Untitled",
-            role: data?.role || "",
-            payout: data?.payout || { amount: 0, currency: "USD" },
-            categories: data?.categories || [],
-            status: data?.status || "open",
-            maxProposals: data?.maxProposals || null,
-            createdAt: formatDate(data?.createdAt),
-          }
-        })
+        const items = await Promise.all(
+          snap.docs.map(async (d) => {
+            const data = d.data()
+            let totalProposals = 0
+            let hasHire = false
+            try {
+              const appsSnap = await getDocs(query(collection(db, "applications"), where("jobId", "==", d.id)))
+              totalProposals = appsSnap.size
+              hasHire = appsSnap.docs.some((app) => app.data()?.status === "Hired")
+            } catch {
+              // ignore counting errors
+            }
+            const maxProposals = data?.maxProposals || null
+            const shouldClose = data?.status !== "closed" && (hasHire || (maxProposals && totalProposals >= maxProposals))
+            if (shouldClose) {
+              try {
+                await updateDoc(doc(db, "jobs", d.id), { status: "closed" })
+              } catch {
+                // ignore write failure, still mark locally
+              }
+            }
+            return {
+              id: d.id,
+              title: data?.title || "Untitled",
+              role: data?.role || "",
+              payout: data?.payout || { amount: 0, currency: "USD" },
+              categories: data?.categories || [],
+              status: shouldClose ? "closed" : data?.status || "open",
+              maxProposals,
+              createdAt: formatDate(data?.createdAt),
+              totalProposals,
+              hasHire,
+            }
+          })
+        )
         const sorted = items.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
         setJobs(sorted)
       } catch (err) {
@@ -57,6 +79,14 @@ export default function PositionsPage() {
 
   async function updateStatus(jobId, status) {
     if (!user) return
+    const job = jobs.find((j) => j.id === jobId)
+    if (status === "open" && job) {
+      const atLimit = job.maxProposals && job.totalProposals >= job.maxProposals
+      if (job.hasHire || atLimit) {
+        setError("Cannot reopen: hire confirmed or proposal limit reached.")
+        return
+      }
+    }
     setUpdatingId(jobId)
     try {
       await updateDoc(doc(db, "jobs", jobId), { status })
@@ -115,11 +145,13 @@ export default function PositionsPage() {
                   <div className="mt-2 text-sm text-gray-600">
                     <span className="font-semibold">{formatCurrency(job.payout)}</span> · Estimated budget
                   </div>
-                  <div className="mt-1 text-xs text-gray-500 flex items-center gap-2">
+                  <div className="mt-1 text-xs text-gray-500 flex items-center gap-2 flex-wrap">
                     <span className={`px-2 py-1 rounded-full border ${job.status === "open" ? "border-green-500 text-green-600" : "border-gray-400 text-gray-600"}`}>
                       {job.status === "open" ? "Open" : "Closed"}
                     </span>
                     {job.maxProposals ? <span>Max proposals: {job.maxProposals}</span> : null}
+                    <span>Proposals: {job.totalProposals || 0}</span>
+                    {job.hasHire ? <span className="text-green-700">Hire confirmed</span> : null}
                   </div>
                 </div>
 
@@ -136,7 +168,7 @@ export default function PositionsPage() {
                   ) : (
                     <button
                       onClick={() => updateStatus(job.id, "open")}
-                      disabled={updatingId === job.id}
+                      disabled={updatingId === job.id || job.hasHire || (job.maxProposals && job.totalProposals >= job.maxProposals)}
                       className="text-sm text-gray-700 border rounded-full px-3 py-1 disabled:opacity-60"
                     >
                       {updatingId === job.id ? "Opening..." : "Reopen"}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Image from 'next/image'
 import Link from 'next/link'
 import { signOut } from "firebase/auth"
-import { collection, getDocs, limit, orderBy, query } from "firebase/firestore"
+import { collection, getDocs, limit, orderBy, query, where } from "firebase/firestore"
 import { auth } from "../../../config"
 import { db } from "../../../config"
 import { useAuth } from "../../hooks/useAuth"
@@ -21,6 +21,10 @@ export default function DashboardPage() {
   const [jobs, setJobs] = useState([])
   const [jobsLoading, setJobsLoading] = useState(true)
   const [jobsError, setJobsError] = useState("")
+  const [studentStats, setStudentStats] = useState({ active: 0, pending: 0, completed: 0, gains: 0, recent: null })
+  const [employerStats, setEmployerStats] = useState({ open: 0, applicants: 0, hires: 0, spend: 0, recent: null })
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [statsError, setStatsError] = useState("")
   const { profile, loading: profileLoading } = useUserProfile(user?.uid)
   const hasSkills = (profile?.skills || []).length > 0
 
@@ -45,21 +49,40 @@ export default function DashboardPage() {
           limit(20) // grab more so personalization still has options
         )
         const snap = await getDocs(q)
-        const items = snap.docs.map((doc) => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            title: data?.title || "Untitled",
-            role: data?.role || "",
-            payout: data?.payout || { amount: 0, currency: "USD" },
-            categories: data?.categories || [],
-            createdBy: data?.createdBy || {},
-            status: data?.status || "open",
-            maxProposals: data?.maxProposals || null,
-            ownerUid: data?.createdBy?.uid || "",
-          }
+        const items = await Promise.all(
+          snap.docs.map(async (docSnap) => {
+            const data = docSnap.data()
+            let totalProposals = 0
+            let hasHire = false
+            try {
+              const appsSnap = await getDocs(query(collection(db, "applications"), where("jobId", "==", docSnap.id)))
+              totalProposals = appsSnap.size
+              hasHire = appsSnap.docs.some((d) => d.data()?.status === "Hired")
+            } catch {
+              // ignore counting failures
+            }
+            return {
+              id: docSnap.id,
+              title: data?.title || "Untitled",
+              role: data?.role || "",
+              payout: data?.payout || { amount: 0, currency: "USD" },
+              categories: data?.categories || [],
+              createdBy: data?.createdBy || {},
+              status: data?.status || "open",
+              maxProposals: data?.maxProposals || null,
+              ownerUid: data?.createdBy?.uid || "",
+              totalProposals,
+              hasHire,
+            }
+          })
+        )
+        const filtered = items.filter((job) => {
+          if (job.ownerUid === user.uid) return false
+          if (job.status !== "open") return false
+          if (job.hasHire) return false
+          if (job.maxProposals && job.totalProposals >= job.maxProposals) return false
+          return true
         })
-        const filtered = items.filter((job) => job.ownerUid !== user.uid)
         setJobs(filtered)
       } catch (err) {
         setJobsError("Unable to load jobs.")
@@ -68,6 +91,63 @@ export default function DashboardPage() {
       }
     }
     loadJobs()
+  }, [user])
+
+  useEffect(() => {
+    async function loadStats() {
+      if (!user) return
+      setStatsLoading(true)
+      setStatsError("")
+      try {
+        // Student view stats
+        const studentSnap = await getDocs(query(collection(db, "applications"), where("applicantId", "==", user.uid)))
+        const studentApps = studentSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        const activeApps = studentApps.filter((a) => a.status === "Hired")
+        const pendingApps = studentApps.filter((a) => a.status !== "Hired" && a.status !== "Rejected" && a.status !== "Completed")
+        const completedApps = studentApps.filter((a) => a.status === "Completed")
+        const gainsTotal = completedApps.reduce((sum, a) => sum + (a.payout?.amount || 0), 0)
+        const recentActive = activeApps
+          .slice()
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))[0] || null
+        setStudentStats({
+          active: activeApps.length,
+          pending: pendingApps.length,
+          completed: completedApps.length,
+          gains: gainsTotal,
+          recent: recentActive,
+        })
+
+        // Employer view stats
+        const employerAppsSnap = await getDocs(query(collection(db, "applications"), where("employerId", "==", user.uid)))
+        const employerApps = employerAppsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        const hires = employerApps.filter((a) => a.status === "Hired")
+        const applicants = employerApps.filter((a) => a.status !== "Hired" && a.status !== "Completed").length
+        const spendTotal = employerApps
+          .filter((a) => a.status === "Completed")
+          .reduce((sum, a) => sum + (a.payout?.amount || 0), 0)
+        const recentHire = hires
+          .slice()
+          .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))[0] || null
+
+        const jobsSnap = await getDocs(query(collection(db, "jobs"), where("createdBy.uid", "==", user.uid)))
+        const openPositions = jobsSnap.docs
+          .map((d) => d.data())
+          .filter((j) => j.status === "open").length
+
+        setEmployerStats({
+          open: openPositions,
+          applicants,
+          hires: hires.length,
+          spend: spendTotal,
+          recent: recentHire,
+        })
+      } catch (err) {
+        setStatsError("Unable to load overview data.")
+      } finally {
+        setStatsLoading(false)
+      }
+    }
+    loadStats()
   }, [user])
 
   const personalizedJobs = useMemo(() => {
@@ -175,7 +255,7 @@ export default function DashboardPage() {
                 hidden={tab !== 'student'}
               >
                 <div className="relative p-6 bg-blue-500 text-white rounded-2xl">
-                  <div className="text-3xl font-bold">2</div>
+                  <div className="text-3xl font-bold">{studentStats.active || (statsLoading ? "…" : 0)}</div>
                   <div className="text-sm mt-1">Active projects</div>
                   <Link href="/dashboard/projects" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open Active projects">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -185,7 +265,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="relative p-6 bg-white border rounded-2xl">
-                  <div className="text-3xl font-bold">5</div>
+                  <div className="text-3xl font-bold">{studentStats.pending || (statsLoading ? "…" : 0)}</div>
                   <div className="text-sm mt-1 text-gray-600">Pending approvals</div>
                   <Link href="/dashboard/approvals" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open Pending approvals">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -195,7 +275,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="relative p-6 bg-white border rounded-2xl">
-                  <div className="text-3xl font-bold">12</div>
+                  <div className="text-3xl font-bold">{studentStats.completed || (statsLoading ? "…" : 0)}</div>
                   <div className="text-sm mt-1 text-gray-600">Completed projects</div>
                   <Link href="/dashboard/completed" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open Completed projects">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -205,9 +285,9 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="relative p-6 bg-white border rounded-2xl">
-                  <div className="text-3xl font-bold">Rp. 3,750,000</div>
+                  <div className="text-3xl font-bold">{formatCurrency({ amount: studentStats.gains || 0, currency: "IDR" })}</div>
                   <div className="text-sm mt-1 text-gray-600">Gains</div>
-                  <Link href="/dashboard/gains" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open Gains">
+                  <Link href="/dashboard/financials" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open financials">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                     </svg>
@@ -224,7 +304,7 @@ export default function DashboardPage() {
                 hidden={tab !== 'employer'}
               >
                 <div className="relative p-6 bg-green-500 text-white rounded-2xl">
-                  <div className="text-3xl font-bold">8</div>
+                  <div className="text-3xl font-bold">{employerStats.open || (statsLoading ? "…" : 0)}</div>
                   <div className="text-sm mt-1">Open positions</div>
                   <Link href="/dashboard/positions" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open positions">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -234,7 +314,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="relative p-6 bg-white border rounded-2xl">
-                  <div className="text-3xl font-bold">34</div>
+                  <div className="text-3xl font-bold">{employerStats.applicants || (statsLoading ? "…" : 0)}</div>
                   <div className="text-sm mt-1 text-gray-600">Applicants</div>
                   <Link href="/dashboard/applicants" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open applicants">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -244,7 +324,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="relative p-6 bg-white border rounded-2xl">
-                  <div className="text-3xl font-bold">5</div>
+                  <div className="text-3xl font-bold">{employerStats.hires || (statsLoading ? "…" : 0)}</div>
                   <div className="text-sm mt-1 text-gray-600">Hires</div>
                   <Link href="/dashboard/hires" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open hires">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -254,9 +334,9 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="relative p-6 bg-white border rounded-2xl">
-                  <div className="text-3xl font-bold">Rp. 12,500,000</div>
+                  <div className="text-3xl font-bold">{formatCurrency({ amount: employerStats.spend || 0, currency: "IDR" })}</div>
                   <div className="text-sm mt-1 text-gray-600">Spend</div>
-                  <Link href="/dashboard/spend" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open spend">
+                  <Link href="/dashboard/financials" className="absolute right-3 bottom-3 w-8 h-8 flex items-center justify-center text-black" aria-label="Open financials">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                     </svg>
@@ -266,7 +346,31 @@ export default function DashboardPage() {
             </div>
 
             <div className="relative p-6 bg-white border rounded-2xl w-full h-full">
-              <div className="text-sm text-gray-500">Most recent work</div>
+              <div className="text-sm text-gray-500 mb-2">Most recent work</div>
+              {tab === "student" ? (
+                studentStats.recent ? (
+                  <div className="space-y-1">
+                    <div className="text-sm font-semibold text-gray-900">{studentStats.recent.jobTitle || "Project"}</div>
+                    <div className="text-xs text-gray-600">With {studentStats.recent.employerName || "Employer"}</div>
+                    <div className="text-xs text-gray-500">Status: Active</div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600">
+                    {statsLoading ? "Loading..." : "No active projects yet."}
+                  </div>
+                )
+              ) : employerStats.recent ? (
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold text-gray-900">{employerStats.recent.jobTitle || "Project"}</div>
+                  <div className="text-xs text-gray-600">Student: {employerStats.recent.applicantName || "Unknown"}</div>
+                  <div className="text-xs text-gray-500">Status: In progress</div>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600">
+                  {statsLoading ? "Loading..." : "No active hires yet."}
+                </div>
+              )}
+              {statsError && <div className="text-xs text-red-600 mt-2">{statsError}</div>}
             </div>
           </div>
 
