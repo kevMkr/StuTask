@@ -1,11 +1,13 @@
 "use client"
 
 import Link from "next/link"
+import Image from 'next/image'
 import { useEffect, useMemo, useState } from "react"
 import { collection, getDocs, query, where } from "firebase/firestore"
 import { db } from "../../../../config"
 import { useAuth } from "../../../hooks/useAuth"
 import { formatCurrency, formatDate } from "../../../utils/jobs"
+import logo from '../../../../Logo.png'
 
 export default function FinancialsPage() {
   const { user, loading } = useAuth()
@@ -90,7 +92,17 @@ export default function FinancialsPage() {
 
   return (
     <main className="min-h-screen bg-white py-8">
-      <div className="max-w-5xl mx-auto px-6 space-y-8">
+      <div className="max-w-5xl mx-auto px-6">
+        <header className="mb-6">
+          <div className="flex items-center justify-between border rounded-full py-3 px-4">
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center gap-3">
+                <Image src={logo} alt="StuTask" width={120} height={36} />
+              </Link>
+            </div>
+          </div>
+        </header>
+        <div className="space-y-8">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">
@@ -267,6 +279,7 @@ export default function FinancialsPage() {
         {loadingData && (
           <div className="text-xs text-gray-500">Loading financial activity...</div>
         )}
+        </div>
       </div>
     </main>
   )

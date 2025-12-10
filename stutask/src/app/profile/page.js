@@ -143,19 +143,21 @@ export default function ProfilePage(){
   }
 
   return (
-    <main className="min-h-screen bg-white">
-      <header className="w-full py-4 border-b">
-        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="flex items-center gap-3">
-              <Image src={logo} alt="StuTask" width={120} height={36} />
-            </Link>
+    <main className="min-h-screen bg-white py-8">
+      <div className="max-w-4xl mx-auto px-6">
+        <header className="mb-6">
+          <div className="flex items-center justify-between border rounded-full py-3 px-4">
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center gap-3">
+                <Image src={logo} alt="StuTask" width={120} height={36} />
+              </Link>
+            </div>
+            <div className="text-sm text-gray-600 flex items-center gap-4">
+              <button onClick={handleSignOut} className="hover:underline">Logout</button>
+            </div>
           </div>
-          <div className="text-sm text-gray-600 flex items-center gap-4">
-            <button onClick={handleSignOut} className="hover:underline">Logout</button>
-          </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <div className="max-w-4xl mx-auto p-8 space-y-6">
         <div className="flex items-start justify-between gap-4">

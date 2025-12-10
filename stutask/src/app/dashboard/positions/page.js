@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from 'next/image'
 import { useRouter } from "next/navigation"
 import { collection, getDocs, query, updateDoc, where, doc } from "firebase/firestore"
 import { db } from "../../../../config"
 import { useAuth } from "../../../hooks/useAuth"
 import { formatCurrency, formatDate } from "../../../utils/jobs"
+import logo from '../../../../Logo.png'
 
 export default function PositionsPage() {
   const router = useRouter()
@@ -112,9 +114,19 @@ export default function PositionsPage() {
 
   return (
     <main className="min-h-screen bg-white py-8">
-      <div className="max-w-6xl mx-auto px-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Your job posts</h1>
+      <div className="max-w-6xl mx-auto px-6">
+        <header className="mb-6">
+          <div className="flex items-center justify-between border rounded-full py-3 px-4">
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center gap-3">
+                <Image src={logo} alt="StuTask" width={120} height={36} />
+              </Link>
+            </div>
+          </div>
+        </header>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-semibold">Your <span className="text-green-600">Job</span> Posts</h1>
           <div className="flex items-center gap-3">
             <Link href="/dashboard/new-job" className="text-sm text-blue-600 hover:underline">+ New job</Link>
             <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">Back</Link>
@@ -179,6 +191,7 @@ export default function PositionsPage() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </main>
   )

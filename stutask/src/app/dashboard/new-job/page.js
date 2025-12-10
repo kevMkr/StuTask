@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { addDoc, collection, serverTimestamp } from "firebase/firestore"
 import { db } from '../../../../config'
 import { useAuth } from '../../../hooks/useAuth'
 import { SKILL_OPTIONS } from "../../../constants/skills"
+import logo from '../../../../Logo.png'
 
 export default function NewJobPage(){
   const router = useRouter()
@@ -112,8 +114,17 @@ export default function NewJobPage(){
   }
 
   return (
-    <main className="min-h-screen bg-white">
-      <div className="max-w-4xl mx-auto p-8">
+    <main className="min-h-screen bg-white py-8">
+      <div className="max-w-4xl mx-auto px-6">
+        <header className="mb-6">
+          <div className="flex items-center justify-between border rounded-full py-3 px-4">
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center gap-3">
+                <Image src={logo} alt="StuTask" width={120} height={36} />
+              </Link>
+            </div>
+          </div>
+        </header>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold">Create new job post</h1>
           <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">Back</Link>

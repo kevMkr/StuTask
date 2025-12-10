@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from 'next/image'
 import { collection, getDocs, orderBy, query, where, updateDoc, doc } from "firebase/firestore"
 import { db } from "../../../../config"
 import { useAuth } from "../../../hooks/useAuth"
+import logo from '../../../../Logo.png'
 
 const STATUS_COLORS = {
   Pending: "text-yellow-600 bg-yellow-50 border-yellow-100",
@@ -65,10 +67,20 @@ export default function ApprovalsPage() {
 
   return (
     <main className="min-h-screen bg-white py-8">
-      <div className="max-w-5xl mx-auto px-6 space-y-6">
-        <div className="flex flex-col items-start gap-2">
-          <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">← Back</Link>
-          <h1 className="text-2xl font-semibold">My applications</h1>
+      <div className="max-w-5xl mx-auto px-6">
+        <header className="mb-6">
+          <div className="flex items-center justify-between border rounded-full py-3 px-4">
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard" className="flex items-center gap-3">
+                <Image src={logo} alt="StuTask" width={120} height={36} />
+              </Link>
+            </div>
+          </div>
+        </header>
+        <div className="space-y-6">
+          <div className="flex flex-col items-start gap-2">
+            <Link href="/dashboard" className="text-sm text-gray-600 hover:underline">← Back</Link>
+          <h1 className="text-2xl font-semibold">My <span className="text-blue-600">Applications</span></h1>
           <p className="text-sm text-gray-600">Hired projects now appear in <Link className="text-blue-600 underline" href="/dashboard/projects">Projects</Link>.</p>
         </div>
 
@@ -120,6 +132,7 @@ export default function ApprovalsPage() {
               </div>
             </div>
           ))}
+        </div>
         </div>
       </div>
     </main>
